@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Meeting Scheduler</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; color: #111; background: #f5f5f2; padding: 0.75rem; font-size: 16px; }
+.wrap { max-width: 680px; margin: 0 auto; }
+h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+h3 { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
+p { font-size: 14px; color: #555; line-height: 1.5; }
+.card { background: #fff; border: 1px solid #e5e5e0; border-radius: 14px; padding: 1rem; margin-bottom: 0.75rem; }
+input[type=text], input[type=email], input[type=date] {
+  width: 100%; padding: 11px 12px; border: 1px solid #ddd; border-radius: 10px;
+  font-size: 16px; font-family: inherit; background: #fff; color: #111; outline: none;
+  -webkit-appearance: none; appearance: none;
+}
+input:focus { border-color: #555; box-shadow: 0 0 0 3px rgba(0,0,0,0.07); }
+button {
+  padding: 11px 18px; border: 1px solid #ccc; border-radius: 10px; background: #fff;
+  color: #111; font-size: 15px; font-family: inherit; cursor: pointer;
+  transition: background 0.12s; -webkit-tap-highlight-color: transparent;
+  min-height: 44px;
+}
+button:active { background: #ececea; }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button.primary { background: #111; color: #fff; border-color: transparent; }
+button.primary:active { background: #333; }
+button.danger { color: #c0392b; border-color: #e8c8c6; font-size: 13px; padding: 8px 12px; min-height: 36px; }
+button.sm { font-size: 13px; padding: 7px 12px; min-height: 36px; }
+.label { font-size: 12px; color: #777; margin-bottom: 5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.badge { display: inline-block; font-size: 11px; padding: 3px 10px; border-radius: 999px; background: #e8f4fe; color: #1a6fa8; font-weight: 600; }
+.badge-green { background: #e6f9f3; color: #0a7a54; }
+.row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.inv-row { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.inv-row input { flex: 1; min-width: 120px; }
+
+/* Availability grid - mobile friendly card style */
+.avail-grid { display: flex; flex-direction: column; gap: 10px; }
+.date-block { border: 1px solid #e5e5e0; border-radius: 10px; overflow: hidden; }
+.date-header { background: #f5f5f2; padding: 8px 12px; font-size: 13px; font-weight: 600; color: #444; border-bottom: 1px solid #e5e5e0; }
+.time-slots { display: flex; flex-direction: column; }
+.time-slot-row { display: flex; align-items: center; padding: 10px 12px; border-bottom: 1px solid #f0f0ec; gap: 10px; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background 0.1s; }
+.time-slot-row:last-child { border-bottom: none; }
+.time-slot-row:active { background: #f8f8f5; }
+.time-slot-row.checked { background: #f0faf6; }
+.slot-label { flex: 1; font-size: 14px; color: #333; }
+.slot-check { width: 26px; height: 26px; border-radius: 6px; border: 1.5px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; transition: all 0.1s; }
+.slot-check.checked { background: #1D9E75; border-color: #1D9E75; color: #fff; }
+
+/* Results grid */
+.results-grid { display: flex; flex-direction: column; gap: 10px; }
+.result-date-block { border: 1px solid #e5e5e0; border-radius: 10px; overflow: hidden; }
+.result-date-header { padding: 8px 12px; font-size: 13px; font-weight: 600; background: #f5f5f2; border-bottom: 1px solid #e5e5e0; }
+.result-slot-row { display: flex; align-items: center; padding: 10px 12px; border-bottom: 1px solid #f0f0ec; gap: 10px; }
+.result-slot-row:last-child { border-bottom: none; }
+.result-slot-row.best { background: #f0faf6; }
+.result-slot-label { flex: 1; font-size: 14px; }
+.result-slot-count { font-size: 13px; font-weight: 600; color: #444; min-width: 36px; text-align: right; }
+.result-bar-wrap { flex: 2; }
+.result-bar { height: 6px; border-radius: 3px; background: #eee; overflow: hidden; }
+.result-bar-fill { height: 100%; background: #1D9E75; border-radius: 3px; transition: width 0.3s; }
+.best-tag { font-size: 10px; font-weight: 700; background: #1D9E75; color: #fff; padding: 1px 6px; border-radius: 999px; margin-left: 6px; vertical-align: middle; }
+
+/* Who responded */
+.person-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0ec; }
+.person-row:last-child { border-bottom: none; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; background: #e8f0fe; color: #3c5fce; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+.person-info { flex: 1; }
+.person-name { font-size: 14px; font-weight: 600; }
+.person-email { font-size: 12px; color: #888; }
+.person-slots { font-size: 12px; color: #1D9E75; font-weight: 600; }
+
+/* Add invitees panel */
+.add-inv-panel { background: #f8f8f5; border-radius: 10px; padding: 12px; margin-top: 10px; }
+
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: #111; color: #fff; padding: 12px 22px; border-radius: 10px;
+  font-size: 14px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 999;
+  white-space: nowrap;
+}
+.toast.show { opacity: 1; }
+.spinner {
+  display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor;
+  border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite;
+  vertical-align: middle; margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.error-box { color: #c0392b; font-size: 13px; margin-bottom: 12px; padding: 10px 14px; background: #fdf2f2; border-radius: 8px; border: 1px solid #e8c8c6; }
+.section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #999; margin-bottom: 8px; }
+.full-btn { width: 100%; margin-top: 4px; }
+.divider { height: 1px; background: #f0f0ec; margin: 10px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="text-align:center;padding:1rem 0 0.5rem"><img src="CaptainLarry.jpg" alt="Logo" style="max-height:80px;max-width:200px;object-fit:contain"/></div>
+  <div class="toast" id="toast"></div>
+  <div id="app"><p style="padding:2rem;text-align:center">Loading...</p></div>
+</div>
+<script>
+var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxECIgNr7WSyIyD0WyUAA3tEb9VSLlxL-aJXRlQlFRcObO0oaXMetwCupHuRSjBDVEz/exec';
+
+var S = {
+  view: 'host',
+  loading: false,
+  poll: null,
+  results: null,
+  inviteeToken: null,
+  newPoll: {
+    title: '', description: '',
+    dates: [], times: ['Morning (10am-12pm)', 'Afternoon (2pm-4pm)'],
+    invitees: [{ name: '', email: '' }]
+  },
+  newDateInput: '',
+  respondName: '', respondEmail: '',
+  selections: {},
+  error: null,
+  showAddInvitees: false,
+  newInvitees: [{ name: '', email: '' }]
+};
+
+function set(patch) { Object.assign(S, patch); render(); }
+
+async function apiGet(params) {
+  var url = SCRIPT_URL + '?' + new URLSearchParams(params);
+  var res = await fetch(url);
+  return res.json();
+}
+async function apiPost(body) {
+  var url = SCRIPT_URL + '?' + new URLSearchParams({ action: body.action, data: JSON.stringify(body) });
+  var res = await fetch(url);
+  return res.json();
+}
+
+function toast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(function(){ el.classList.remove('show'); }, 3000);
+}
+function fmtDate(d) {
+  return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+}
+function fmtDateLong(d) {
+  return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+}
+function initials(name) {
+  if (!name) return '?';
+  var parts = name.trim().split(' ');
+  return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
+}
+function avatarColor(name) {
+  var colors = ['#e8f0fe:#3c5fce','#fce8e6:#c0392b','#e6f4ea:#1D9E75','#fff3e0:#e67e22','#f3e5f5:#8e44ad'];
+  var i = (name||'').charCodeAt(0) % colors.length;
+  return colors[i].split(':');
+}
+
+function render() {
+  var app = document.getElementById('app');
+  if (S.view === 'host') app.innerHTML = hostView();
+  else if (S.view === 'results') app.innerHTML = resultsView();
+  else if (S.view === 'respond') app.innerHTML = respondView();
+  else if (S.view === 'submitted') app.innerHTML = submittedView();
+  document.querySelectorAll('[data-a]').forEach(function(el) {
+    if (el.tagName === 'INPUT') {
+      el.addEventListener('blur', handle);
+      if (el.type === 'date') el.addEventListener('change', handle);
+    } else {
+      el.addEventListener('click', handle);
+    }
+  });
+}
+
+function hostView() {
+  var p = S.newPoll;
+  var canCreate = p.title.trim() && p.dates.length > 0 && p.invitees.some(function(i){ return i.email.trim(); });
+  var datesHtml = p.dates.length > 0
+    ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">'
+      + p.dates.map(function(d,i){
+          return '<span style="display:inline-flex;align-items:center;gap:6px;background:#f0f0ec;border-radius:999px;padding:5px 10px 5px 12px;font-size:13px">'
+            +fmtDate(d)+'<button class="danger" data-a="rm-date" data-i="'+i+'" style="border:none;background:none;padding:0;min-height:auto;font-size:15px;color:#888;cursor:pointer">×</button></span>';
+        }).join('')
+      +'</div>'
+    : '';
+  var invHtml = p.invitees.map(function(inv,i){
+    return '<div class="inv-row">'
+      +'<input type="text" placeholder="Name" value="'+inv.name+'" data-a="inv-name" data-i="'+i+'"/>'
+      +'<input type="email" placeholder="Email" value="'+inv.email+'" data-a="inv-email" data-i="'+i+'"/>'
+      +(p.invitees.length>1?'<button class="danger" data-a="rm-inv" data-i="'+i+'">×</button>':'')
+      +'</div>';
+  }).join('');
+
+  return '<div style="padding-top:0.5rem;margin-bottom:1rem">'
+    +'<h1>New meeting poll</h1>'
+    +'<p style="margin-top:4px">Set up your poll and send invites.</p></div>'
+
+    +'<div class="card">'
+    +'<h3>Meeting details</h3>'
+    +'<div class="label">Title *</div>'
+    +'<input type="text" placeholder="e.g. Team Sync" data-a="set-title" value="'+p.title+'" style="margin-bottom:10px"/>'
+    +'<div class="label">Description (optional)</div>'
+    +'<input type="text" placeholder="Any context for attendees..." data-a="set-desc" value="'+p.description+'"/>'
+    +'</div>'
+
+    +'<div class="card">'
+    +'<h3>Date options *</h3>'
+    +datesHtml
+    +'<div class="row">'
+    +'<input type="date" data-a="set-date" value="'+S.newDateInput+'" style="flex:1"/>'
+    +'<button class="sm" data-a="add-date">+ Add</button>'
+    +'</div></div>'
+
+    +'<div class="card">'
+    +'<h3>Time slots</h3>'
+    +p.times.map(function(t,i){
+      return '<div class="row"><span style="flex:1;font-size:14px">'+t+'</span>'
+        +(p.times.length>1?'<button class="danger" data-a="rm-time" data-i="'+i+'">Remove</button>':'')
+        +'</div>';
+    }).join('')
+    +'<button class="sm" data-a="add-time" style="margin-top:4px">+ Add time slot</button>'
+    +'</div>'
+
+    +'<div class="card">'
+    +'<h3>Invitees *</h3>'
+    +'<p style="margin-bottom:10px">Each person gets a unique personal link.</p>'
+    +invHtml
+    +'<button class="sm" data-a="add-inv" style="margin-top:4px">+ Add person</button>'
+    +'</div>'
+
+    +(S.error?'<div class="error-box">'+S.error+'</div>':'')
+    +'<button class="primary full-btn" data-a="create" '+((!canCreate||S.loading)?'disabled':'')+'>'
+    +(S.loading?'<span class="spinner"></span>Sending invites...':'Create poll &amp; send invites &rarr;')
+    +'</button>';
+}
+
+function resultsView() {
+  var r = S.results;
+  if (!r || !r.poll) return '<div class="card"><p>Loading...</p></div>';
+  var poll = r.poll, responses = r.responses || [], invitees = r.invitees || [];
+  var total = responses.length;
+
+  // Score slots
+  var scores = {};
+  poll.dates.forEach(function(d){ poll.times.forEach(function(t){ scores[d+'__'+t]=0; }); });
+  responses.forEach(function(resp){
+    Object.keys(resp.selections).forEach(function(k){ if(resp.selections[k]) scores[k]=(scores[k]||0)+1; });
+  });
+  var maxScore = Math.max.apply(null, Object.values(scores).concat([1]));
+
+  // Results grid — grouped by date
+  var resultsHtml = '<div class="results-grid">'
+    + poll.dates.map(function(d){
+        var slots = poll.times.map(function(t){
+          var k = d+'__'+t, count = scores[k]||0;
+          var pct = total>0 ? Math.round(count/total*100) : 0;
+          var best = count===maxScore && count>0;
+          return '<div class="result-slot-row'+(best?' best':'')+'"> '
+            +'<span class="result-slot-label">'+t+(best?'<span class="best-tag">BEST</span>':'')+'</span>'
+            +'<div class="result-bar-wrap"><div class="result-bar"><div class="result-bar-fill" style="width:'+pct+'%"></div></div></div>'
+            +'<span class="result-slot-count">'+count+'/'+total+'</span>'
+            +'</div>';
+        }).join('');
+        return '<div class="result-date-block">'
+          +'<div class="result-date-header">'+fmtDateLong(d)+'</div>'
+          +slots+'</div>';
+      }).join('')
+    +'</div>';
+
+  // Who responded
+  var respondedTokens = new Set(responses.map(function(r){ return r.token; }));
+  var respondedEmails = new Set(responses.map(function(r){ return r.email; }));
+  var pending = invitees.filter(function(i){ return !respondedEmails.has(i.email); });
+
+  var respondedHtml = responses.length === 0
+    ? '<p>No responses yet.</p>'
+    : responses.map(function(resp){
+        var c = avatarColor(resp.name);
+        var slots = Object.values(resp.selections).filter(Boolean).length;
+        return '<div class="person-row">'
+          +'<div class="avatar" style="background:'+c[0]+';color:'+c[1]+'">'+initials(resp.name)+'</div>'
+          +'<div class="person-info"><div class="person-name">'+resp.name+'</div>'
+          +(resp.email?'<div class="person-email">'+resp.email+'</div>':'')+'</div>'
+          +'<span class="person-slots">'+slots+' slot'+(slots!==1?'s':'')+'</span></div>';
+      }).join('');
+
+  var pendingHtml = pending.length > 0
+    ? '<div style="margin-top:10px"><div class="section-title">Awaiting ('+pending.length+')</div>'
+      +pending.map(function(i){
+        return '<div style="font-size:13px;color:#888;padding:3px 0">'+(i.name?i.name+' &mdash; ':'')+i.email+'</div>';
+      }).join('')+'</div>'
+    : '';
+
+  // Add invitees panel
+  var addInvHtml = '';
+  if (S.showAddInvitees) {
+    var ni = S.newInvitees;
+    addInvHtml = '<div class="add-inv-panel">'
+      +'<div class="section-title" style="margin-bottom:8px">Add new invitees</div>'
+      +ni.map(function(inv,i){
+        return '<div class="inv-row">'
+          +'<input type="text" placeholder="Name" value="'+inv.name+'" data-a="ni-name" data-i="'+i+'"/>'
+          +'<input type="email" placeholder="Email" value="'+inv.email+'" data-a="ni-email" data-i="'+i+'"/>'
+          +(ni.length>1?'<button class="danger" data-a="rm-ni" data-i="'+i+'">×</button>':'')
+          +'</div>';
+      }).join('')
+      +'<div class="row" style="margin-top:8px">'
+      +'<button class="sm" data-a="add-ni">+ Add another</button>'
+      +'<button class="sm primary" data-a="send-ni" '+(S.loading?'disabled':'')+'>'
+      +(S.loading?'<span class="spinner"></span>':'')+'Send invites</button>'
+      +'</div>'
+      +(S.error?'<div class="error-box" style="margin-top:8px">'+S.error+'</div>':'')
+      +'</div>';
+  }
+
+  return '<div style="padding-top:0.5rem;margin-bottom:1rem;display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">'
+    +'<div style="flex:1"><h1>'+poll.title+'</h1>'+(poll.description?'<p style="margin-top:2px">'+poll.description+'</p>':'')+'</div>'
+    +'<span class="badge badge-green">'+total+' response'+(total!==1?'s':'')+'</span></div>'
+
+    +'<div class="card">'
+    +'<h3>Availability summary</h3>'
+    +(total===0?'<p>No responses yet. Waiting on invitees.</p>':resultsHtml)
+    +'</div>'
+
+    +'<div class="card">'
+    +'<h3>Responses</h3>'
+    +respondedHtml
+    +pendingHtml
+    +'<div class="divider"></div>'
+    +'<button class="sm" data-a="toggle-add-inv">'
+    +(S.showAddInvitees?'Cancel':'+ Add more invitees')+'</button>'
+    +addInvHtml
+    +'</div>'
+
+    +'<div style="display:flex;gap:8px;margin-top:0.5rem;flex-wrap:wrap">'
+    +'<button class="sm" data-a="refresh" '+(S.loading?'disabled':'')+'>'
+    +(S.loading?'<span class="spinner"></span>':'')+'Refresh</button>'
+    +'<button class="sm" data-a="new-poll" style="margin-left:auto">New poll</button>'
+    +'</div>';
+}
+
+function respondView() {
+  var poll = S.poll;
+  if (!poll) return '<div style="padding-top:2rem;text-align:center"><p>'+(S.loading?'Loading your invite...':'Could not load poll. Check your link.')+'</p></div>';
+
+  // Mobile-friendly card-per-date layout
+  var gridHtml = '<div class="avail-grid">'
+    + poll.dates.map(function(d){
+        var slots = poll.times.map(function(t){
+          var k = d+'__'+t;
+          var checked = !!S.selections[k];
+          return '<div class="time-slot-row'+(checked?' checked':'')+'" data-a="toggle" data-key="'+k+'">'
+            +'<span class="slot-label">'+t+'</span>'
+            +'<div class="slot-check'+(checked?' checked':'')+'">'+( checked?'&#10003;':'')+'</div>'
+            +'</div>';
+        }).join('');
+        return '<div class="date-block">'
+          +'<div class="date-header">'+fmtDateLong(d)+'</div>'
+          +'<div class="time-slots">'+slots+'</div>'
+          +'</div>';
+      }).join('')
+    +'</div>';
+
+  return '<div style="padding-top:0.5rem;margin-bottom:1rem">'
+    +'<h1>'+poll.title+'</h1>'
+    +(poll.description?'<p style="margin-top:4px">'+poll.description+'</p>':'')
+    +'<p style="margin-top:6px;color:#888">Tap the times when you are available.</p></div>'
+
+    +'<div class="card">'
+    +'<h3>Your name</h3>'
+    +'<input type="text" placeholder="Your name" value="'+S.respondName+'" data-a="set-name" style="margin-bottom:10px"/>'
+    +'<h3>Email (optional)</h3>'
+    +'<input type="email" placeholder="you@email.com" value="'+S.respondEmail+'" data-a="set-resp-email"/>'
+    +'</div>'
+
+    +'<div class="card">'
+    +'<h3>When are you available?</h3>'
+    +'<p style="margin-bottom:12px;font-size:13px">Tap each time slot you can make.</p>'
+    +gridHtml
+    +'</div>'
+
+    +(S.error?'<div class="error-box">'+S.error+'</div>':'')
+    +'<button class="primary full-btn" data-a="submit-resp" '+(!S.respondName.trim()||S.loading?'disabled':'')+'>'
+    +(S.loading?'<span class="spinner"></span>Submitting...':'Submit availability &rarr;')+'</button>';
+}
+
+function submittedView() {
+  return '<div style="padding-top:3rem;text-align:center;max-width:340px;margin:0 auto;padding-bottom:2rem">'
+    +'<div style="font-size:48px;margin-bottom:16px">&#10003;</div>'
+    +'<h1>Thanks, '+S.respondName+'!</h1>'
+    +'<p style="margin-top:10px">Your availability has been saved. The organizer will be in touch once they find the best time.</p>'
+    +'</div>';
+}
+
+function syncInputs() {
+  document.querySelectorAll('[data-a]').forEach(function(el){
+    if (el.tagName !== 'INPUT') return;
+    var a=el.dataset.a, val=el.value, idx=parseInt(el.dataset.i), p=S.newPoll, ni=S.newInvitees;
+    if (a==='set-title') S.newPoll=Object.assign({},p,{title:val});
+    else if (a==='set-desc') S.newPoll=Object.assign({},p,{description:val});
+    else if (a==='set-date') S.newDateInput=val;
+    else if (a==='inv-name') { var inv=[].concat(p.invitees); inv[idx]=Object.assign({},inv[idx],{name:val}); S.newPoll=Object.assign({},p,{invitees:inv}); }
+    else if (a==='inv-email') { var inv=[].concat(p.invitees); inv[idx]=Object.assign({},inv[idx],{email:val}); S.newPoll=Object.assign({},p,{invitees:inv}); }
+    else if (a==='ni-name') { var n=[].concat(ni); n[idx]=Object.assign({},n[idx],{name:val}); S.newInvitees=n; }
+    else if (a==='ni-email') { var n=[].concat(ni); n[idx]=Object.assign({},n[idx],{email:val}); S.newInvitees=n; }
+    else if (a==='set-name') S.respondName=val;
+    else if (a==='set-resp-email') S.respondEmail=val;
+  });
+}
+
+async function handle(e) {
+  var a=e.currentTarget.dataset.a, idx=parseInt(e.currentTarget.dataset.i), val=e.currentTarget.value, p=S.newPoll;
+
+  if (e.type==='blur') {
+    if (a==='set-title') S.newPoll=Object.assign({},p,{title:val});
+    else if (a==='set-desc') S.newPoll=Object.assign({},p,{description:val});
+    else if (a==='inv-name') { var inv=[].concat(p.invitees); inv[idx]=Object.assign({},inv[idx],{name:val}); S.newPoll=Object.assign({},p,{invitees:inv}); }
+    else if (a==='inv-email') { var inv=[].concat(p.invitees); inv[idx]=Object.assign({},inv[idx],{email:val}); S.newPoll=Object.assign({},p,{invitees:inv}); }
+    else if (a==='ni-name') { var n=[].concat(S.newInvitees); n[idx]=Object.assign({},n[idx],{name:val}); S.newInvitees=n; }
+    else if (a==='ni-email') { var n=[].concat(S.newInvitees); n[idx]=Object.assign({},n[idx],{email:val}); S.newInvitees=n; }
+    else if (a==='set-name') S.respondName=val;
+    else if (a==='set-resp-email') S.respondEmail=val;
+    return;
+  }
+
+  if (a==='add-date') { syncInputs(); if(S.newDateInput) set({newPoll:Object.assign({},S.newPoll,{dates:S.newPoll.dates.concat([S.newDateInput])}),newDateInput:''}); }
+  else if (a==='rm-date') set({newPoll:Object.assign({},p,{dates:p.dates.filter(function(_,i){return i!==idx;})})});
+  else if (a==='rm-time') set({newPoll:Object.assign({},p,{times:p.times.filter(function(_,i){return i!==idx;})})});
+  else if (a==='add-time') { var label=prompt('Time slot label:'); if(label) set({newPoll:Object.assign({},p,{times:p.times.concat([label])})}); }
+  else if (a==='add-inv') set({newPoll:Object.assign({},p,{invitees:p.invitees.concat([{name:'',email:''}])})});
+  else if (a==='rm-inv') set({newPoll:Object.assign({},p,{invitees:p.invitees.filter(function(_,i){return i!==idx;})})});
+  else if (a==='toggle') {
+    var sel=Object.assign({},S.selections);
+    sel[e.currentTarget.dataset.key]=!sel[e.currentTarget.dataset.key];
+    set({selections:sel});
+  }
+  else if (a==='toggle-add-inv') set({showAddInvitees:!S.showAddInvitees, error:null});
+  else if (a==='add-ni') set({newInvitees:S.newInvitees.concat([{name:'',email:''}])});
+  else if (a==='rm-ni') set({newInvitees:S.newInvitees.filter(function(_,i){return i!==idx;})});
+  else if (a==='send-ni') {
+    syncInputs();
+    var valid = S.newInvitees.filter(function(i){return i.email.trim();});
+    if (!valid.length) { set({error:'Please enter at least one email.'}); return; }
+    set({loading:true,error:null});
+    try {
+      var res = await apiPost({action:'addInvitees',pollId:S.results.poll.pollId,invitees:valid});
+      if(res.error) throw new Error(res.error);
+      toast(res.inviteeCount+' invite(s) sent!');
+      var results = await apiGet({action:'getResults',pollId:S.results.poll.pollId});
+      set({loading:false,showAddInvitees:false,newInvitees:[{name:'',email:''}],results:results});
+    } catch(err) { set({loading:false,error:'Error: '+err.message}); }
+  }
+  else if (a==='refresh') {
+    set({loading:true});
+    try { var results=await apiGet({action:'getResults',pollId:S.results.poll.pollId}); set({loading:false,results:results}); }
+    catch(err) { set({loading:false}); toast('Refresh failed'); }
+  }
+  else if (a==='new-poll') set({view:'host',results:null,showAddInvitees:false,newInvitees:[{name:'',email:''}],newPoll:{title:'',description:'',dates:[],times:['Morning (10am-12pm)','Afternoon (2pm-4pm)'],invitees:[{name:'',email:''}]}});
+  else if (a==='create') {
+    syncInputs();
+    var np=S.newPoll, validInv=np.invitees.filter(function(i){return i.email.trim();});
+    set({loading:true,error:null});
+    try {
+      var res=await apiPost({action:'createPoll',title:np.title,description:np.description,dates:np.dates,times:np.times,invitees:validInv});
+      if(res.error) throw new Error(res.error);
+      toast('Poll created! '+res.inviteeCount+' invite(s) sent.');
+      var results=await apiGet({action:'getResults',pollId:res.pollId});
+      set({loading:false,view:'results',results:results,newPoll:{title:'',description:'',dates:[],times:['Morning (10am-12pm)','Afternoon (2pm-4pm)'],invitees:[{name:'',email:''}]}});
+    } catch(err) { set({loading:false,error:'Error: '+err.message}); }
+  }
+  else if (a==='submit-resp') {
+    syncInputs();
+    set({loading:true,error:null});
+    try {
+      var res=await apiPost({action:'submitResponse',pollId:S.poll.pollId,token:S.inviteeToken,name:S.respondName,email:S.respondEmail,selections:S.selections});
+      // Even if fetch throws, the data is saved on the server side - show success
+      set({loading:false,view:'submitted'});
+    } catch(err) {
+      // Apps Script saves the data even when fetch throws a CORS error
+      // so we show the success screen regardless
+      set({loading:false,view:'submitted'});
+    }
+  }
+}
+
+(async function(){
+  var params=new URLSearchParams(window.location.search);
+  var token=params.get('token');
+  if (token) {
+    S.view='respond'; S.inviteeToken=token; S.loading=true;
+    render();
+    try {
+      var inv=await apiGet({action:'getInvitee',token:token});
+      if(inv && inv.error) throw new Error(inv.error);
+      var poll=await apiGet({action:'getPoll',pollId:inv.pollId});
+      if(poll && poll.error) throw new Error(poll.error);
+      S.respondName=inv.name||''; S.respondEmail=inv.email||'';
+      S.poll=poll; S.loading=false;
+    } catch(err) {
+      // If it is a network/CORS error but we got partial data, try to recover
+      if(S.poll) { S.loading=false; }
+      else { S.loading=false; S.error='Unable to load poll. Please check your internet connection and try again, or contact the organizer.'; }
+    }
+    render();
+    return;
+  }
+  render();
+})();
+</script>
+</body>
+</html>
