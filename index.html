@@ -104,8 +104,10 @@ button.sm { font-size: 13px; padding: 7px 12px; min-height: 36px; }
 <script>
 var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxECIgNr7WSyIyD0WyUAA3tEb9VSLlxL-aJXRlQlFRcObO0oaXMetwCupHuRSjBDVEz/exec';
 
+var HOST_PASSWORD = 'changeme123'; // ← change this to your own password
+
 var S = {
-  view: 'host',
+  view: 'login',
   loading: false,
   poll: null,
   results: null,
@@ -117,6 +119,7 @@ var S = {
   },
   newDateInput: '',
   respondName: '', respondEmail: '',
+  pw: '',
   selections: {},
   error: null,
   showAddInvitees: false,
@@ -160,7 +163,8 @@ function avatarColor(name) {
 
 function render() {
   var app = document.getElementById('app');
-  if (S.view === 'host') app.innerHTML = hostView();
+  if (S.view === 'login') app.innerHTML = loginView();
+  else if (S.view === 'host') app.innerHTML = hostView();
   else if (S.view === 'results') app.innerHTML = resultsView();
   else if (S.view === 'respond') app.innerHTML = respondView();
   else if (S.view === 'submitted') app.innerHTML = submittedView();
@@ -172,6 +176,17 @@ function render() {
       el.addEventListener('click', handle);
     }
   });
+}
+
+function loginView() {
+  return '<div style="padding-top:3rem;text-align:center;max-width:320px;margin:0 auto">'
+    +'<img src="CaptainLarry.jpg" alt="Logo" style="max-height:70px;max-width:180px;object-fit:contain;margin-bottom:1.5rem"/>'
+    +'<h1 style="margin-bottom:8px">Host login</h1>'
+    +'<p style="margin-bottom:1.5rem">Enter your password to create or manage polls.</p>'
+    +'<input type="password" id="pw-input" placeholder="Password" data-a="set-pw" style="margin-bottom:10px;text-align:center"/>'
+    +(S.error?'<div class="error-box" style="margin-bottom:10px">'+S.error+'</div>':'')
+    +'<button class="primary full-btn" data-a="login">Enter &rarr;</button>'
+    +'</div>';
 }
 
 function hostView() {
@@ -425,7 +440,14 @@ async function handle(e) {
     return;
   }
 
-  if (a==='add-date') { syncInputs(); if(S.newDateInput) set({newPoll:Object.assign({},S.newPoll,{dates:S.newPoll.dates.concat([S.newDateInput])}),newDateInput:''}); }
+  if (a==='login') {
+    var pw = document.getElementById('pw-input') ? document.getElementById('pw-input').value : S.pw;
+    if (pw === HOST_PASSWORD) { set({view:'host', error:null}); }
+    else { set({error:'Incorrect password. Please try again.'}); }
+    return;
+  }
+  else if (a==='set-pw') { S.pw = val; return; }
+  else if (a==='add-date') { syncInputs(); if(S.newDateInput) set({newPoll:Object.assign({},S.newPoll,{dates:S.newPoll.dates.concat([S.newDateInput])}),newDateInput:''}); }
   else if (a==='rm-date') set({newPoll:Object.assign({},p,{dates:p.dates.filter(function(_,i){return i!==idx;})})});
   else if (a==='rm-time') set({newPoll:Object.assign({},p,{times:p.times.filter(function(_,i){return i!==idx;})})});
   else if (a==='add-time') { var label=prompt('Time slot label:'); if(label) set({newPoll:Object.assign({},p,{times:p.times.concat([label])})}); }
@@ -506,6 +528,7 @@ async function handle(e) {
     render();
     return;
   }
+  if (S.view !== 'respond') S.view = 'login';
   render();
 })();
 </script>
