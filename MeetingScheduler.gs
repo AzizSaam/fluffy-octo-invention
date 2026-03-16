@@ -9,8 +9,8 @@
 //      Execute as: Me | Who has access: Anyone
 // ============================================================
 
-const SENDER_ALIAS        = "mlavelle83@gmail.com";   // ← change this
-const HOST_EMAIL          = "mlavelle83@gmail.com";   // ← change this
+const SENDER_ALIAS        = "email@domain.com";   // ← change this
+const HOST_EMAIL          = "email@domain.com";   // ← change this
 const NETLIFY_URL         = "https://azizsaam.github.io/fluffy-octo-invention/";
 const APP_NAME            = "Meeting Scheduler";
 const SHEET_POLLS         = "Polls";
