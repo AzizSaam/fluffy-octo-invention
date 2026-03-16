@@ -11,7 +11,7 @@
 
 const SENDER_ALIAS        = "mlavelle83@gmail.com";   // ← change this
 const HOST_EMAIL          = "mlavelle83@gmail.com";   // ← change this
-const GITHUB_URL         = "https://github.com/AzizSaam/fluffy-octo-invention/";
+const GITHUB_URL         = "https://azizsaam.github.io/fluffy-octo-invention/";
 const APP_NAME            = "Meeting Scheduler";
 const SHEET_POLLS         = "Polls";
 const SHEET_RESPONSES     = "Responses";
