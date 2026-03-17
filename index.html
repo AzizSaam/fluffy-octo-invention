@@ -446,7 +446,8 @@ async function handle(e) {
         S.sessionToken = res.token;
         set({loading:false, view:'host', error:null});
       } else {
-        set({loading:false, error:'Incorrect password. Please try again.'});
+        var msg = (res && res.error) ? res.error : 'Incorrect password. Please try again.';
+        set({loading:false, error: msg});
       }
     }).catch(function() {
       set({loading:false, error:'Could not reach server. Please try again.'});
