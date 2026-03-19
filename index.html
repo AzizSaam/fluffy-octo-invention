@@ -99,8 +99,9 @@ button.sm { font-size: 13px; padding: 7px 12px; min-height: 36px; }
 
 <script>
 var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxECIgNr7WSyIyD0WyUAA3tEb9VSLlxL-aJXRlQlFRcObO0oaXMetwCupHuRSjBDVEz/exec';
-
 var DEFAULT_TIMES = ['Morning (10am-12pm)', 'Afternoon (2pm-4pm)'];
+var SESSION_STORAGE_KEY = 'meeting_scheduler_session_token';
+var SESSION_EXPIRES_KEY = 'meeting_scheduler_session_expires_at';
 
 var S = {
   view: 'login',
@@ -120,6 +121,7 @@ var S = {
   respondEmail: '',
   pw: '',
   sessionToken: null,
+  sessionExpiresAt: null,
   selections: {},
   error: null,
   showAddInvitees: false,
@@ -184,6 +186,37 @@ function dedupeInvitees(invitees) {
   return out;
 }
 
+function saveSession(token, expiresAt) {
+  S.sessionToken = token || null;
+  S.sessionExpiresAt = expiresAt || null;
+  if (token) localStorage.setItem(SESSION_STORAGE_KEY, token);
+  else localStorage.removeItem(SESSION_STORAGE_KEY);
+  if (expiresAt) localStorage.setItem(SESSION_EXPIRES_KEY, expiresAt);
+  else localStorage.removeItem(SESSION_EXPIRES_KEY);
+}
+
+function loadSession() {
+  var token = localStorage.getItem(SESSION_STORAGE_KEY);
+  var expiresAt = localStorage.getItem(SESSION_EXPIRES_KEY);
+  if (!token) return;
+
+  if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) {
+    clearSession();
+    return;
+  }
+
+  S.sessionToken = token;
+  S.sessionExpiresAt = expiresAt || null;
+}
+
+function clearSession() {
+  saveSession(null, null);
+}
+
+function isUnauthorizedErrorMessage(msg) {
+  return /unauthorized/i.test(String(msg || ''));
+}
+
 async function apiGet(params) {
   var url = SCRIPT_URL + '?' + new URLSearchParams(params).toString();
   var res = await fetch(url, {
@@ -203,6 +236,37 @@ async function apiPost(body) {
   });
   if (!res.ok) throw new Error('Request failed (' + res.status + ')');
   return res.json();
+}
+
+async function getResultsAuthed(pollId) {
+  if (!S.sessionToken) throw new Error('Unauthorized');
+  return apiGet({
+    action: 'getResults',
+    pollId: pollId,
+    sessionToken: S.sessionToken
+  });
+}
+
+async function handleMaybeUnauthorized(err) {
+  var msg = err && err.message ? err.message : String(err || '');
+  if (isUnauthorizedErrorMessage(msg)) {
+    try {
+      if (S.sessionToken) {
+        await apiPost({ action: 'logout', sessionToken: S.sessionToken });
+      }
+    } catch (_) {}
+    clearSession();
+    set({
+      view: 'login',
+      loading: false,
+      sessionToken: null,
+      sessionExpiresAt: null,
+      results: null,
+      error: 'Your host session has expired. Please sign in again.'
+    });
+    return true;
+  }
+  return false;
 }
 
 function toast(msg) {
@@ -294,9 +358,12 @@ function hostView() {
 
   return ''
     + '<div style="text-align:center;padding:0.75rem 0 0.5rem"><img src="CaptainLarry.jpg" alt="Logo" style="max-height:70px;max-width:180px;object-fit:contain"/></div>'
-    + '<div style="padding-top:0.5rem;margin-bottom:1rem">'
-    +   '<h1>New meeting poll</h1>'
-    +   '<p style="margin-top:4px">Set up your poll and send invites.</p>'
+    + '<div style="padding-top:0.5rem;margin-bottom:1rem;display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">'
+    +   '<div style="flex:1">'
+    +     '<h1>New meeting poll</h1>'
+    +     '<p style="margin-top:4px">Set up your poll and send invites.</p>'
+    +   '</div>'
+    +   '<button class="sm" data-a="logout">Log out</button>'
     + '</div>'
 
     + '<div class="card">'
@@ -387,9 +454,7 @@ function resultsView() {
     + '</div>';
 
   var respondedEmails = new Set(
-    responses
-      .map(function(resp) { return normalizeEmail(resp.email); })
-      .filter(Boolean)
+    responses.map(function(resp) { return normalizeEmail(resp.email); }).filter(Boolean)
   );
 
   var pending = invitees.filter(function(i) {
@@ -445,7 +510,8 @@ function resultsView() {
     + '<div style="text-align:center;padding:0.75rem 0 0.5rem"><img src="CaptainLarry.jpg" alt="Logo" style="max-height:70px;max-width:180px;object-fit:contain"/></div>'
     + '<div style="padding-top:0.25rem;margin-bottom:1rem;display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">'
     +   '<div style="flex:1"><h1>' + esc(poll.title) + '</h1>' + (poll.description ? '<p style="margin-top:2px">' + esc(poll.description) + '</p>' : '') + '</div>'
-    +   '<span class="badge badge-green">' + total + ' response' + (total !== 1 ? 's' : '') + '</span></div>'
+    +   '<span class="badge badge-green">' + total + ' response' + (total !== 1 ? 's' : '') + '</span>'
+    + '</div>'
 
     + '<div class="card">'
     +   '<h3>Availability summary</h3>'
@@ -463,8 +529,10 @@ function resultsView() {
 
     + '<div style="display:flex;gap:8px;margin-top:0.5rem;flex-wrap:wrap">'
     +   '<button class="sm" data-a="refresh" ' + (S.loading ? 'disabled' : '') + '>'
-    +   (S.loading ? '<span class="spinner"></span>' : '') + 'Refresh</button>'
-    +   '<button class="sm" data-a="new-poll" style="margin-left:auto">New poll</button>'
+    +     (S.loading ? '<span class="spinner"></span>' : '') + 'Refresh'
+    +   '</button>'
+    +   '<button class="sm" data-a="new-poll">New poll</button>'
+    +   '<button class="sm" data-a="logout" style="margin-left:auto">Log out</button>'
     + '</div>';
 }
 
@@ -568,6 +636,24 @@ function syncInputs() {
   });
 }
 
+async function logoutAndReturnToLogin() {
+  var oldToken = S.sessionToken;
+  clearSession();
+  try {
+    if (oldToken) await apiPost({ action: 'logout', sessionToken: oldToken });
+  } catch (_) {}
+  set({
+    view: 'login',
+    loading: false,
+    results: null,
+    poll: null,
+    error: null,
+    sessionToken: null,
+    sessionExpiresAt: null,
+    showAddInvitees: false
+  });
+}
+
 async function handle(e) {
   var target = e.currentTarget;
   var a = target.dataset.a;
@@ -615,11 +701,13 @@ async function handle(e) {
     try {
       var loginRes = await apiPost({ action: 'login', pw: pw });
       if (loginRes && loginRes.token) {
+        saveSession(loginRes.token, loginRes.expiresAt || null);
         set({
           loading: false,
           view: 'host',
           error: null,
           sessionToken: loginRes.token,
+          sessionExpiresAt: loginRes.expiresAt || null,
           pw: ''
         });
       } else {
@@ -631,6 +719,12 @@ async function handle(e) {
     } catch (err) {
       set({ loading: false, error: 'Could not reach server. Please try again.' });
     }
+    return;
+  }
+
+  if (a === 'logout') {
+    set({ loading: true, error: null });
+    await logoutAndReturnToLogin();
     return;
   }
 
@@ -756,7 +850,7 @@ async function handle(e) {
 
       if (addRes.error) throw new Error(addRes.error);
 
-      var refreshedResults1 = await apiGet({ action: 'getResults', pollId: S.results.poll.pollId });
+      var refreshedResults1 = await getResultsAuthed(S.results.poll.pollId);
 
       set({
         loading: false,
@@ -767,7 +861,8 @@ async function handle(e) {
 
       toast(addRes.inviteeCount + ' invite(s) sent!');
     } catch (err) {
-      set({ loading: false, error: 'Error: ' + err.message });
+      if (await handleMaybeUnauthorized(err)) return;
+      set({ loading: false, error: 'Error: ' + (err.message || String(err)) });
     }
     return;
   }
@@ -775,9 +870,10 @@ async function handle(e) {
   if (a === 'refresh') {
     set({ loading: true, error: null });
     try {
-      var refreshedResults2 = await apiGet({ action: 'getResults', pollId: S.results.poll.pollId });
+      var refreshedResults2 = await getResultsAuthed(S.results.poll.pollId);
       set({ loading: false, results: refreshedResults2 });
     } catch (err) {
+      if (await handleMaybeUnauthorized(err)) return;
       set({ loading: false, error: 'Refresh failed.' });
     }
     return;
@@ -840,7 +936,7 @@ async function handle(e) {
 
       if (createRes.error) throw new Error(createRes.error);
 
-      var createdResults = await apiGet({ action: 'getResults', pollId: createRes.pollId });
+      var createdResults = await getResultsAuthed(createRes.pollId);
 
       set({
         loading: false,
@@ -853,7 +949,8 @@ async function handle(e) {
 
       toast('Poll created! ' + createRes.inviteeCount + ' invite(s) sent.');
     } catch (err) {
-      set({ loading: false, error: 'Error: ' + err.message });
+      if (await handleMaybeUnauthorized(err)) return;
+      set({ loading: false, error: 'Error: ' + (err.message || String(err)) });
     }
     return;
   }
@@ -897,6 +994,8 @@ async function handle(e) {
 }
 
 (async function() {
+  loadSession();
+
   var params = new URLSearchParams(window.location.search);
   var token = params.get('token');
 
@@ -918,6 +1017,7 @@ async function handle(e) {
       S.poll = poll;
       S.loading = false;
       S.error = null;
+      S.selections = {};
     } catch (err) {
       S.loading = false;
       S.error = 'Unable to load poll. Please check your internet connection and try again, or contact the organizer.';
@@ -927,7 +1027,11 @@ async function handle(e) {
     return;
   }
 
-  S.view = 'login';
+  if (S.sessionToken) {
+    S.view = 'host';
+  } else {
+    S.view = 'login';
+  }
   render();
 })();
 </script>
