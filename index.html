@@ -240,7 +240,7 @@ async function apiPost(body) {
 
 async function getResultsAuthed(pollId) {
   if (!S.sessionToken) throw new Error('Unauthorized');
-  return apiGet({
+  return apiPost({
     action: 'getResults',
     pollId: pollId,
     sessionToken: S.sessionToken
